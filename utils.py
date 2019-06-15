@@ -74,8 +74,6 @@ class GSdata(Dataset):
 
     def __init__(self, num_markers, val, val_split, val_idx):
 
-        np.random.seed(42)
-
         data = pd.read_pickle('x.pkl')
         #phenotypes y
         #0:tkw    1:testw   2:length  3:width   4:Hard    5:Prot    6:SDS 7:PHT
@@ -132,13 +130,13 @@ class Deepgs(nn.Module):
 
 class GPLayer(gpytorch.models.AdditiveGridInducingVariationalGP):
 
-    def __init__(self, n_features, grid_size=100, grid_bounds=(-1.1, 1.1)):
+    def __init__(self, n_features, grid_size=100, grid_bounds=(-10.1, 10.1)):
             #super(GPLayer, self).__init__(grid_size=grid_size, grid_bounds=n_features*[grid_bounds])
             super(GPLayer, self).__init__(grid_size=grid_size, grid_bounds=[grid_bounds],
                                               n_components=n_features, mixing_params=False, sum_output=True)
             self.grid_bounds = grid_bounds
             self.mean_module = ConstantMean()
-            self.covar_module = RBFKernel()#ScaleKernel(RBFKernel())
+            self.covar_module = ScaleKernel(RBFKernel())
 
     def forward(self, x):
         mean_x = self.mean_module(x)
@@ -149,8 +147,8 @@ class GPLayer(gpytorch.models.AdditiveGridInducingVariationalGP):
 class DKLModel(gpytorch.Module):
         def __init__(self):
             super(DKLModel, self).__init__()
-            self.n_features = 2
-            self.feature_extractor = Deepgs(self.n_features,dropout=False)
+            self.n_features = 3
+            self.feature_extractor = Deepgs(self.n_features,dropout=True)
             self.gp_layer = GPLayer(self.n_features)
 
         def forward(self, x):
