@@ -7,12 +7,15 @@ import torch
 from torch import nn, optim
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import MultiStepLR
 
 from utils import Deepgs, GSdata, DKLModel, plot
 
 import pdb
 
-save = False
+np.random.seed(23)
+
+save = True
 num_markers = 5000
 train_set = GSdata(num_markers,False,0.1,0)
 val_set = GSdata(num_markers,True,0.1,0)
@@ -29,12 +32,14 @@ likelihood = GaussianLikelihood()
 model.train()
 likelihood.train()
 
-lr = 0.01
+n_epochs = 100
+lr = 0.1
 optimizer = torch.optim.SGD([
     {'params': model.feature_extractor.parameters(), 'lr': 0.01, 'weight_decay' : 1e-6, 'momentum': 0.9},
     {'params': model.gp_layer.parameters(), 'lr': lr},
     {'params': likelihood.parameters(), 'lr': lr},
 ], lr=lr, momentum=0, nesterov=False, weight_decay=0)
+scheduler = MultiStepLR(optimizer, milestones=[0.25 * n_epochs, 0.5 * n_epochs, 0.75 * n_epochs], gamma=0.25)
 
 mll = gpytorch.mlls.VariationalMarginalLogLikelihood(likelihood, model, n_data=train_set.target.size)
 mae = nn.L1Loss()
@@ -42,8 +47,9 @@ mae = nn.L1Loss()
 train_likelihood = []
 train_loss = []
 val_loss = []
-for epoch in range(50):
+for epoch in range(n_epochs):
     print('Epoch {}:'.format(epoch+1))
+    scheduler.step()
     acc_loss = 0
     acc_likelihood = 0
     for i_batch, sample_batched in enumerate(tqdm(train_loader,ascii=True)):
@@ -97,6 +103,8 @@ for epoch in range(50):
     print()
 
 if save:
-    torch.save(model.state_dict(),'model_gp.torch')
+    state_dict = model.state_dict()
+    likelihood_state_dict = likelihood.state_dict()
+    torch.save({'model': state_dict, 'likelihood': likelihood_state_dict}, 'model_gp.torch')
 
 plot(model, val_set, train_loss, val_loss, True)
