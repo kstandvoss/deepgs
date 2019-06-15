@@ -1,5 +1,5 @@
-import numpy as np 
-import pandas as pd 
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,36 +14,39 @@ from matplotlib import pyplot as plt
 import pdb
 
 def plot(net, val_set, train_loss, val_loss, gp=False):
-    
+
     if gp:
         train_str = 'Mean absolute Error'
     else:
         train_str = 'ELBO'
 
     val_x, val_y = val_set.get_data()
-    
+
     with torch.no_grad():
         pred = net(val_x.float())
         if gp:
-            pred = pred.mean().view(-1,1)    
+            pred = pred.mean().view(-1,1)
         val_y = val_y.view(-1,1).float()
         data = torch.cat((pred,val_y),1).numpy()
 
     mnvs = []
     for k in range(1,len(val_x)+1):
-        mnvs.append(MNV(k,data))  
+        mnvs.append(MNV(k,data))
 
+    name = 'gp' if gp else 'cnn'
     f = plt.figure()
     f.suptitle('Training Error')
     plt.plot(train_loss)
     plt.xlabel('Epoch')
     plt.ylabel(train_str)
+    f.savefig(f"{name}_train_err.png")
 
     f = plt.figure()
     f.suptitle('Validation Error')
     plt.plot(val_loss)
     plt.xlabel('Epoch')
     plt.ylabel('Mean absolute Error')
+    f.savefig(f"{name}_val_err.png")
 
     f = plt.figure()
     f.suptitle('MNV')
@@ -51,8 +54,9 @@ def plot(net, val_set, train_loss, val_loss, gp=False):
     plt.xlabel(r'Top $\mathbf{\alpha}\%$')
     plt.xlim([1,100])
     plt.ylabel('MNV')
+    f.savefig(f"{name}_mnv.png")
 
-    plt.show()
+
 
 def MNV(k, data, sort_idx=None):
     #pdb.set_trace()
@@ -65,7 +69,7 @@ def MNV(k, data, sort_idx=None):
     else:
         pi_x, pi_y = sort_idx
 
-    idx = np.arange(k)    
+    idx = np.arange(k)
     d = 1/(np.log2(idx+2))
     return 1/k * ((k-1)*MNV(k-1,data, sort_idx) + np.sum(data[pi_x][idx,1]*d)/np.sum(data[pi_y][idx,1]*d))
 
@@ -80,15 +84,15 @@ class GSdata(Dataset):
         #phenotypes y
         #0:tkw    1:testw   2:length  3:width   4:Hard    5:Prot    6:SDS 7:PHT
         target = pd.read_pickle('y.pkl')
-        
+
         l = int(len(data) * val_split)
         idx = l * val_idx
         mask = np.zeros(len(data), dtype=bool)
         mask[idx:idx+l] = True
-            
+
         if not val:
             mask = ~mask
-        
+
         marker_idx = np.random.choice(np.arange(data.shape[1]), num_markers, replace=False)
         self.data = data.as_matrix()[mask][:,marker_idx]
         #pdb.set_trace()
@@ -101,7 +105,7 @@ class GSdata(Dataset):
         return torch.tensor(self.data[idx]).unsqueeze(0), torch.tensor(self.target[idx])
 
     def get_data(self):
-        return torch.from_numpy(self.data).unsqueeze(1), torch.from_numpy(self.target)    
+        return torch.from_numpy(self.data).unsqueeze(1), torch.from_numpy(self.target)
 
 
 class Deepgs(nn.Module):
@@ -145,7 +149,7 @@ class GPLayer(gpytorch.models.AdditiveGridInducingVariationalGP):
         covar_x = self.covar_module(x)
         #pdb.set_trace()
         return GaussianRandomVariable(mean_x, covar_x)
- 
+
 class DKLModel(gpytorch.Module):
         def __init__(self):
             super(DKLModel, self).__init__()
@@ -160,8 +164,7 @@ class DKLModel(gpytorch.Module):
                 #features.fill_(1)
 #                pdb.set_trace()
             #else:
-            features = gpytorch.utils.scale_to_bounds(features, self.gp_layer.grid_bounds[0], self.gp_layer.grid_bounds[1])      
-            self.features = features    
+            features = gpytorch.utils.scale_to_bounds(features, self.gp_layer.grid_bounds[0], self.gp_layer.grid_bounds[1])
+            self.features = features
             return self.gp_layer(features.unsqueeze(-1))
-            
-        
+
